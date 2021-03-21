@@ -69,3 +69,39 @@ Figure 1에서 볼 수 있듯, input embedding을 E로, special [CLS] token의 �
  직관적으로 deep bidirectional model은 unidirectional model들과 두 방향의 model을 얕게 연결해놓은 model들보다 훨씬 성능이 좋다는 것을 알 수 있다. 안타깝게도 표준 conditional language model들은 왼쪽에서 오른쪽 또는 오른쪽에서 왼쪽으로만 학습이 가능하다. bidirectional 조건화를 통해 각 단어가 간접적으로 자신을 볼 수 있고, 모델이 multi-context에서 대상 단어를 사소하게 예측할 수 있기 때문이다.
 
  deep bidirectional representation을 학습하기 위해 input token에서 random하게 mask를 시킨다. 그 후, mask된 token을 예측한다.
+
+ **Task #2: Next Sentence Prediction (NSP)**
+
+ Question Answering(QA)과 Natural Language Inference(NLI)같이 중요한 downstream task들은 두 문장 사이의 relationship을 이해하는 것에 기반을 둔다. 그러나 language modeling은 이를 직접적으로 수집하지 못한다. 문장 사이의 relationship을 이해하는 model을 학습시키기 위해 monolingual corpus에서 사소하게 생성될 수 있는 binarized next sentence prediction task를 pre-train하였다. 
+
+ 문장 A와 B를 각 pre-training 예제에서 고르고 50%의 경우, A 뒤에 따르는 next sentence가 B로 사용된다(IsNext라고 labeling된다). 나머지 50%의 경우에는 corpus 내의 무작위 문장을 B로 사용한다(NotNext라고 labeling된다). Figure 1의 C가 NSP를 위해 사용된다(label). 이 방법은 매우 쉽게 느껴질 수 있으나 pre-train을 할 때 QA와 NLI task 모두 효과적인 모습을 볼 수 있었다.
+
+<img src = '/images/2021_03_22_01.png'>
+
+NSP task는 이전 연구들에서 사용된 representation learning objective에 매우 연관되어있다. 그러나 이전 연구들의 경우, 오직 sentence embedding만 downstream task로 전송된다. 여기서 BERT는 end-task model parameter들을 초기화하기 위해 모든 parameter들을 전송한다.
+
+### Pre-training data
+
+ Pre-training procedure은 기존의 language model pre-train 문헌을 따른다. pre-training corpus는 BooksCorpus(800M words)과 English Wikipedia(2500M words)를 사용하였다. Wikipedia의 경우 오직 text 구절만을 남겨두고 list, table, header들은 모두 삭제하였다. 긴 연속 sequence를 추출하기 위해 무작위로 섞인 sentence-level corpus보다 document-level corpus를 사용하는 것이 더욱 효과적이다. 
+
+### Fine-tunning BERT
+
+ text 쌍을 포함하는 애플리케이션의 경우 일반적인 패턴은 bidirectional cross attention을 적용하기 전에 text 쌍을 독립적으로 encodding하는 것이다. BERT는 대신 self-attention mechanism을 사용하여 이 두 단계를 통합한다. 연결된 text 쌍을 self-attention과 encodding하면 두 문장 사이의 bidirectional cross attention이 효과적으로 포함되기 때문이다.
+
+ 각 task에서 우리는 간단히 task specific input과 output을 BERT에 연결하고 모든 parameter들을 end-to-end fine-tune하면 된다. pre-training의 input sentence A와 B는 (1)paraprasing, (2)수반되는 hypothesis-premise 쌍, (3)question answering의 question-passage 쌍, (4) text를 생성하지 않는 text classification 또는 sequence tagging text-∅ 쌍과 유사하다. output에서, token represetation은 sequence tagging 또는 question answering같은 token level task에 입력이 된다. 그리고 [CLS] representation은 entailment 또는 sentiment analysis같은 classification output layer에 input이 된다. pre-training과 fine-tuning을 비교하면, fine-tuning은 상대적으로 저렴하다. 
+
+## Experiment
+
+### GLUE
+
+<img src = '/images/2021_03_22_02.png'>
+
+Table 1은 GLUE 벤치마크를 사용해 모델들을 평가한 표이다. BERT_BASE와 GPT의 성능차이를 보면 모든 task에서 우위를 점하고 있다는 것을 알 수 있다. 그리고 BASE model과 LARGE model의 성능 또한 매우 큰 차이를 보이는 것을 확인할 수 있다. 
+
+ batch size는 32, fine-tune은 3epoch 동안 모든 GLUE task의 data에 대해 학습하였다. 각 task마다 최적의 learning rate(5e-5, 4e-5, 3e-5, and 2e-5)를 Dev set에 사용하였다. 추가적으로 BERT_LARGE의 경우 때때로 작은 dataset을 학습할 때 불안정한 모습을 보이기도 하였다. 
+
+### SQuAD v1.1
+
+ Wikipedia에서 주어지는 question, passage, answer를 사용해 passage 내의 answer text span을 예측하는 task이다. Figure 1에서 볼 수 있듯, question answering task에서, 우리는 input question과 passage를 single packed sequence로 표현한다(question은 A embedding을 사용하고, passage는 B embedding을 사용한다). 오직 start vector S ∈ R_H와 end vector E ∈ R_H 만을 fine-tuning 동안 소개한다. answer span의 start word i의 확률은 T_i와 S 사이에서 dot product 연산을 하고 뒤따르는 paragraph내의 모든 word들에 대한 softmax를 거쳐 연산한다: 
+
+<img src = '/images/2021_03_22_03.png'>
