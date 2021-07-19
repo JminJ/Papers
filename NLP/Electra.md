@@ -33,3 +33,17 @@ GAN의 training objective와 유사하나 몇가지 다른 점들은 존재한�
 <img src = '/images/2021_07_18_05.png' width = '70%'>
 
 raw text의 큰 corpus X에 대해서 구해진다. 단일 sample로 loss의 기대치를 근사화할 수 있다. 또한 우리는 discriminator의 loss를 generator를 통해 back-propagete하지 않는다(실제로, sampling 단계 때문에 할 수 없다). pre-training이 끝난 뒤, generator는 버리고, downstream task들에서 discriminator를 fine-tune한다.
+
+## Experiments
+
+### Model EXTENSIONS
+
+달리 명시되어 있지 않는 한, experiments는 BERT-Base와 동일한 model size와 training data를 사용한다.
+
+**Weight Sharing**
+
+<img src = '/images/2021_07_19_01.png' width = '70%'>
+
+pre-training의 성능을 향상시키기 위해 generator과 discriminator의 weight들을 공유하는 방법을 제안한다. generator과 discriminator의 크기가 같을 때는 transformer의 모든 weight가 연결될 수 있다. 하지만 이 보다 더 효율적인 방법을 찾아냈는데, 이는 generator의 크기를 줄이고  오직 embeddings(token과 positional embedding)만을 공유하는 것이다. 이때 embedding의 크기는 discriminator의 hidden state의 크기여야 한다. generator의 "input", "output" token embedding들은 BERT에서 처럼 언제나 서로 연결되어 있다. 
+
+이번에는 generator과 discriminator의 크기가 같은 때와 weight tying 전략을 비교해 봤다. 이 model들은 500k step 동안 학습되었다. weight tying을 사용하지 않았을 경우, GLUE score는 83.6을 기록했다. 반면 token embedding만 연결했을 경우는 84.3점, 모든 weight를 연결했을 경우는 84.4점을 기록하였다. masked language modeling은 아래와 같은 representation들을 학습하는데 특히 효과적이기 때문에 ELECTRA은 token embedding을 연결하는 것에서 오는 것이라고 가설을 세울 수 있었다 :
