@@ -1,2 +1,2 @@
 # Papers
-I moved TIL's 'papers' folder into this repository.
+I translate papers of NLP. 
