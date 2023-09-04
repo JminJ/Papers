@@ -22,7 +22,7 @@ Uptrain된 GQA는 MHA와 비슷한 성능을 보이며 또한 MQA과 비슷한 �
 
 ### 2.1 Uptraining
 
-![스크린샷 2023-09-03 오후 1.31.52.png](../images/gqa_figure_1.png)
+![figure 1](../images/gqa_figure_1.png)
 
 Multi-Query Attention모델로 Uptraining하기 위해서는 두 가지 작업을 거쳐야 한다.
 
@@ -36,7 +36,7 @@ Grouped-query attention은 query attention head를 G개의 그룹으로 나누�
 
 중요한 점은 Introduction에서 언급된 GQA는 MHA와 MQA의 interpolation이라는 점이다. 즉, GQA_1은 한 개의 query head subgroup을 가지기 때문에 모든 Query Head가 한 개의 key-value head를 공유한다(MQA와 동일하다). 또한 GQA_H의 경우 H개의 query head subgroup을 보유한다. 각 query head는 한 개의 key-value head를 가지므로 (H개의 key-value head를 가짐) MHA와 동일하다. 
 
-![스크린샷 2023-09-03 오후 1.49.32.png](../images/gqa_figure_2.png)
+![figure 2](../images/gqa_figure_2.png)
 
 위의 Figure 2에서 각 방법의 그림을 보여준다. MHA에서 MQA로 변환할 때, key-value head들은 각 한 개의 key-value head로 mean pooling된다. key-value head의 수가 줄어들음으로써 저장해야 할 key-value head cache 양 또한 줄어들고 이에따라 불어와야 할 양이 factor H만큼 줄어들게 된다. 하지만 large model들은 일반적으로 head의 수를 늘리고 MQA를 적용했을 때 모델의 크기가 커짐에 따라 bandwidth와 capacity가 급격히 감소한다. GQA는 model의 규모가 커지더라도 동일한 비율로 bandwidth와 capacity가 줄어들게 한다.
 
@@ -65,4 +65,20 @@ Uptrained 모델들은 공개 T5으로 초기화된다. Key, value head들은 MQ
 
 GLUE와 같은 유명한 autoregressive inference classification benchmark들은 적용하기가 힘들기에 사용하지 않았다.
 
-![스크린샷 2023-09-03 오후 2.36.41.png](../images/gqa_table_1.png)
+![table 1](../images/gqa_table_1.png)
+
+> Fine-tuning
+> 
+
+Fine-tuning을 할 때, 상수 learning rate 0.001, batch size 128, dropout rate 0.1을 모든 task들에 사용했다. CNN/Daily Mail과 WMT에는 input 길이를 512, output 길이에 256을 사용했고 다른 summarization task들에는 input 길이로 2048, output 길이에 512를 사용했다. 마지막으로 TriviaQA에는 input 길이로 2048, output 길이로 32를 사용했다. 수렴이 될 때까지 학습하고 dev performance가 가장 높은 checkpoint를 선택한다. 우리는 inference시 greedy decoding을 사용했다.
+
+> Timing
+> 
+
+우리는 TPUv4 chip에 대한 sample별 시간을 xprof를 통해 측정해 기록했다. Timing 실험을 위해 8개의 TPU들과 각 TPU별로 최대 32 까지의 batch size, 각 모델에 최적화 된 parallelization을 사용했다.
+
+![figure 3](../images/gqa_figure_3.png)
+
+### 3.2 Main Results
+
+Figure 3은 모든 task에 대한 MHA T5-Large, T5-XXL과 Uptrained($\alpha=0.05$) MQA, GQA-8 XXL 모델들의 성능을 모두 평균내어 보여준다. 우리가 볼 수 있는 것은 더 큰 MQA model은 MHA model에 대해 납득할만한 거래(trade-off)안이 될 수 있다는 점이다: MQA T5-XXL모델이 MHA T5-Large모델보다 속도, 성능면에서 뛰어난 모습을 보인다. 하지만 GQA는 더 많은 성능 향상을 보였고 결국 MHA-XXL에 견줄만한 성능과 MQA에 견줄만한 속도를 달성하게 되었다. Table 1에서 모든 데이터셋에 대한 결과를 볼 수 있다.
