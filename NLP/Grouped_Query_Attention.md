@@ -82,3 +82,34 @@ Fine-tuning을 할 때, 상수 learning rate 0.001, batch size 128, dropout rate
 ### 3.2 Main Results
 
 Figure 3은 모든 task에 대한 MHA T5-Large, T5-XXL과 Uptrained($\alpha=0.05$) MQA, GQA-8 XXL 모델들의 성능을 모두 평균내어 보여준다. 우리가 볼 수 있는 것은 더 큰 MQA model은 MHA model에 대해 납득할만한 거래(trade-off)안이 될 수 있다는 점이다: MQA T5-XXL모델이 MHA T5-Large모델보다 속도, 성능면에서 뛰어난 모습을 보인다. 하지만 GQA는 더 많은 성능 향상을 보였고 결국 MHA-XXL에 견줄만한 성능과 MQA에 견줄만한 속도를 달성하게 되었다. Table 1에서 모든 데이터셋에 대한 결과를 볼 수 있다.
+
+### 3.3 Ablation
+
+해당 섹션에서는 다른 모델링 방법의 효과를 조사한다. 평가 시 대표적인 몇 개의 task들을 사용했다; CNN/Daily Mail(짧은 형태의 요약), Multi-News(긴 형태의 요약), TriviaQA(question-answering).
+
+> Checkpoint Conversion(체크포인트 변환 방식)
+> 
+
+![Figure 4](../images/gqa_figure_4.png)
+
+Uptrain 시, 원본 checkpoint의 key-value head를 개조하는 방법에 대해 성능을 비교하였다. Mean pooling 방식이 First(첫 번째 head를 유지하고 나머지는 버림), Random(random으로 head를 초기화함)방식보다 성능이 뛰어났다. 직관적으로 얼마나 기존 pre-train 모델의 checkpoint를 유지하는가에 따라 성능이 더 올라가는 것을 확인할 수 있었다.
+
+> Uptraining Steps
+> 
+
+![Figure 5](../images/gqa_figure_5.png)
+
+위의 Figure 5는 T5 XXL, MQA, GQA-8모델을 특정 uptraining 비율(uptraining proportion)을 적용시켰을 때의 성능을 비교하고 있다. **GQA는 conversion(개조) 직후에도 괜찮은 성능을 보이지만 MQA의 경우 추가학습이 되어야 비로소 괜찮은 성능을 보여준다**. 또한 GQA와 MQA 모두 proportion $\alpha$가 0.05(5%)에서 0.1(10%)로 올라갈 때는 미미한 성능 향상을 보인다(따라서 논문에서 0.05를 적용해 준 것 같다.).
+
+> Number Of Groups
+> 
+
+![Figure 6](../images/gqa_figure_6.png)
+
+Figure 6에서 GQA의 group의 수에 따른 sample 처리 속도를 비교했다. 거대 모델들의 경우 key-value cache에서 오는 memory bandwidth overhead에 큰 문제가 없는 반면 head의 수가 늘어날 경우 key-value의 크기가 급격히 줄어든다. 결과적으로 MQA에서 그룹 수를 늘리게 되면 초반부에서는 약간의 속도 저하만 발행하고 MHA에 가까워질 수록 비용이 증가한다. 따라서 해당 논문에서 적당한 개수인 8개를 채택했다.
+
+## Appendix A: Training Stability
+
+긴 input을 가진 task를 결합 시 multi-query attention이 학습을 불안정하게 하는 것을 발견했다. 저자들은 여러개의 T5-Large model을 multi-query attention으로 scratch(베이스 모델 없이 0부터 pre-trian함)부터 학습시켰다. 
+
+각 경우마다 pre-train 시 빈번한 loss spike로 힘들었고 최종모델은 long input task에서 즉시 diverge(아마 형식과 다른 답을 뱉은 것 같다)되었다. Uptrain된 multi-query attention 모델은 더 안정성이 있었으나 높은 variance를 보이므로 불안정한 task(unstable task)들에 대한 multi-query attention 모델의 경우 여러 실행에 대한 평균 값을 보고한다.
